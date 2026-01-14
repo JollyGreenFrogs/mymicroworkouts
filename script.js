@@ -66,3 +66,4 @@ function resetWeek() {
 
 // Initialize
 buildTable();
+document.getElementById("reset-button").addEventListener("click", resetWeek);
