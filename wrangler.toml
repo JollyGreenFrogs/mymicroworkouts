@@ -1,0 +1,13 @@
+# Cloudflare Pages configuration
+name = "mymicroworkouts"
+compatibility_date = "2024-01-01"
+
+# D1 Database bindings
+[[d1_databases]]
+binding = "DB"
+database_name = "mymicroworkouts-db"
+database_id = "" # Set this during deployment
+
+# Environment variables (secrets should be set via Cloudflare dashboard)
+[vars]
+ENVIRONMENT = "production"

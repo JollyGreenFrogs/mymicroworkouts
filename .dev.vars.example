@@ -1,0 +1,22 @@
+# Development Environment Variables
+# Copy this file to .dev.vars and fill in your actual values
+# NEVER commit .dev.vars to version control!
+
+# Google OAuth Credentials
+# Get these from: https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=GOCSPX-your-google-client-secret
+
+# Microsoft OAuth Credentials
+# Get these from: https://portal.azure.com/ → Azure Active Directory → App registrations
+MICROSOFT_CLIENT_ID=your-microsoft-client-id-uuid
+MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+
+# Session Secret (generate with: openssl rand -hex 32)
+SESSION_SECRET=your-64-character-random-string-here
+
+# Base URL (local development)
+BASE_URL=http://localhost:8788
+
+# Production values for reference:
+# BASE_URL=https://your-app.pages.dev

@@ -1,0 +1,25 @@
+{
+  "name": "mymicroworkouts",
+  "version": "1.0.0",
+  "description": "My microworkout planner - Track your daily workout progress",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler pages dev public --d1=DB --binding DB=mymicroworkouts-db",
+    "deploy": "wrangler pages deploy public",
+    "build": "tsc",
+    "db:migrate": "wrangler d1 execute mymicroworkouts-db --file=./db/schema.sql",
+    "db:migrate:local": "wrangler d1 execute mymicroworkouts-db --local --file=./db/schema.sql"
+  },
+  "keywords": ["workout", "tracker", "cloudflare", "d1"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20241230.0",
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "wrangler": "^3.96.0"
+  }
+}
