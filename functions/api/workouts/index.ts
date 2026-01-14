@@ -101,6 +101,14 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     });
   }
   
+  // Validate non-empty strings
+  if (day.trim() === '' || time.trim() === '' || exercise.trim() === '') {
+    return new Response(JSON.stringify({ error: 'Fields cannot be empty' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  
   const weekStartDate = week_start || getWeekStart();
   
   try {

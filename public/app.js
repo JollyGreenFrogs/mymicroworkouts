@@ -41,14 +41,26 @@ async function checkAuth() {
 
 // Initialize OAuth login
 function initOAuth() {
-  const baseUrl = window.location.origin;
+  const baseUrl = window.APP_CONFIG?.baseUrl || window.location.origin;
+  const googleClientId = window.APP_CONFIG?.googleClientId;
+  const microsoftClientId = window.APP_CONFIG?.microsoftClientId;
+  
+  // Validate configuration
+  if (!googleClientId || !microsoftClientId) {
+    console.error('OAuth client IDs not configured. Please set APP_CONFIG in index.html');
+    const errorMessage = document.getElementById('error-message');
+    if (errorMessage) {
+      errorMessage.textContent = 'Application not configured. Please contact the administrator.';
+      errorMessage.style.display = 'block';
+    }
+    return;
+  }
   
   document.getElementById('google-login').addEventListener('click', () => {
-    const clientId = 'YOUR_GOOGLE_CLIENT_ID'; // Set via environment in production
     const redirectUri = `${baseUrl}/api/oauth/google/callback`;
     const scope = 'openid email profile';
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${clientId}&` +
+      `client_id=${googleClientId}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scope)}&` +
@@ -59,11 +71,10 @@ function initOAuth() {
   });
   
   document.getElementById('microsoft-login').addEventListener('click', () => {
-    const clientId = 'YOUR_MICROSOFT_CLIENT_ID'; // Set via environment in production
     const redirectUri = `${baseUrl}/api/oauth/microsoft/callback`;
     const scope = 'openid email profile User.Read';
     const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?` +
-      `client_id=${clientId}&` +
+      `client_id=${microsoftClientId}&` +
       `redirect_uri=${encodeURIComponent(redirectUri)}&` +
       `response_type=code&` +
       `scope=${encodeURIComponent(scope)}&` +

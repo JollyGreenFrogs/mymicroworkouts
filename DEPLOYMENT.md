@@ -176,20 +176,20 @@ Now that you have your production URL, update your OAuth apps:
 
 ## Step 7: Update Frontend Configuration
 
-Edit `public/app.js` and update OAuth client IDs:
+Edit `public/index.html` and update the `APP_CONFIG` object:
 
 ```javascript
-// Around line 40-41
-const clientId = 'your-actual-google-client-id';
-
-// Around line 52-53
-const clientId = 'your-actual-microsoft-client-id';
+window.APP_CONFIG = {
+  googleClientId: 'your-actual-google-client-id',
+  microsoftClientId: 'your-actual-microsoft-client-id',
+  baseUrl: window.location.origin
+};
 ```
 
 Commit and redeploy:
 
 ```bash
-git add public/app.js
+git add public/index.html
 git commit -m "Update OAuth client IDs for production"
 wrangler pages deploy public
 ```

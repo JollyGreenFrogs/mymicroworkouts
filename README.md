@@ -111,14 +111,14 @@ BASE_URL=http://localhost:8788
 
 ### 4. Update OAuth Client IDs in Frontend
 
-Edit `public/app.js` and update the placeholder values:
+Edit `public/index.html` and update the `APP_CONFIG` object:
 
 ```javascript
-// Line ~40-41
-const clientId = 'YOUR_GOOGLE_CLIENT_ID'; // Replace with your Google Client ID
-
-// Line ~52-53
-const clientId = 'YOUR_MICROSOFT_CLIENT_ID'; // Replace with your Microsoft Client ID
+window.APP_CONFIG = {
+  googleClientId: 'your-actual-google-client-id',
+  microsoftClientId: 'your-actual-microsoft-client-id',
+  baseUrl: window.location.origin
+};
 ```
 
 ### 5. Create D1 Database

@@ -58,6 +58,17 @@
     <button id="reset-button" class="reset-button">Reset Week</button>
   </div>
   
+  <!-- Configuration: Set APP_CONFIG before loading app.js -->
+  <script>
+    // Configuration injected at build time or set by environment
+    // In production, replace these with actual values or inject via server-side rendering
+    window.APP_CONFIG = {
+      googleClientId: 'YOUR_GOOGLE_CLIENT_ID',
+      microsoftClientId: 'YOUR_MICROSOFT_CLIENT_ID',
+      baseUrl: window.location.origin
+    };
+  </script>
+  <script src="config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

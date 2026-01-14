@@ -93,15 +93,17 @@ openssl rand -hex 32
 
 ### 5. Update Frontend OAuth Client IDs
 
-Edit `public/app.js`:
+Edit `public/index.html` and update the `APP_CONFIG` object (around line 55):
 
 ```javascript
-// Line ~40-41 (Google)
-const clientId = 'your-actual-google-client-id';
-
-// Line ~52-53 (Microsoft)
-const clientId = 'your-actual-microsoft-client-id';
+window.APP_CONFIG = {
+  googleClientId: 'your-actual-google-client-id',
+  microsoftClientId: 'your-actual-microsoft-client-id',
+  baseUrl: window.location.origin
+};
 ```
+
+**Note**: For production deployments, consider injecting these values at build time or using environment-based configuration.
 
 ### 6. Initialize Local Database
 

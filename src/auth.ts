@@ -36,6 +36,9 @@ export function generateUUID(): string {
   return crypto.randomUUID();
 }
 
+// Session configuration
+const SESSION_DURATION_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 // Get current week start (Monday)
 export function getWeekStart(date: Date = new Date()): string {
   const d = new Date(date);
@@ -49,7 +52,7 @@ export function getWeekStart(date: Date = new Date()): string {
 // Create a new session for a user
 export async function createSession(db: D1Database, userId: string): Promise<string> {
   const sessionId = generateSecureToken(48);
-  const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
+  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_DURATION_SECONDS;
   
   await db.prepare(
     'INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)'
