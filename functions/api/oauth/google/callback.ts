@@ -49,8 +49,10 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
     const sessionId = await createSession(env.DB, user.id);
     
     // Redirect to app with session cookie
-    return Response.redirect(env.BASE_URL, 302, {
+    return new Response(null, {
+      status: 302,
       headers: {
+        'Location': env.BASE_URL,
         'Set-Cookie': createSessionCookie(sessionId)
       }
     });
