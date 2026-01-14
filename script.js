@@ -13,8 +13,7 @@ const workouts = {
 function buildTable() {
   const table = document.getElementById("workout-table");
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  let header = `<tr><th>Time</th>${days.map(day => `<th>${day}</th>`).join("")}</tr>`;
-  table.innerHTML = header;
+  let html = `<tr><th>Time</th>${days.map(day => `<th>${day}</th>`).join("")}</tr>`;
 
   for (const [time, exercises] of Object.entries(workouts)) {
     let row = `<tr><td>${time}</td>`;
@@ -22,8 +21,10 @@ function buildTable() {
       row += `<td><input type="checkbox" data-day="${day}" data-time="${time}" data-exercise="${exercises[0]}"> ${exercises[0]}</td>`;
     });
     row += `</tr>`;
-    table.innerHTML += row;
+    html += row;
   }
+  
+  table.innerHTML = html;
   loadProgress();
   document.querySelectorAll("input[type='checkbox']").forEach(cb => {
     cb.addEventListener("change", saveProgress);
@@ -42,7 +43,13 @@ function saveProgress() {
 }
 
 function loadProgress() {
-  const progress = JSON.parse(localStorage.getItem("workoutProgress")) || {};
+  let progress = {};
+  try {
+    progress = JSON.parse(localStorage.getItem("workoutProgress")) || {};
+  } catch (e) {
+    // If localStorage data is corrupted, start fresh
+    localStorage.removeItem("workoutProgress");
+  }
   document.querySelectorAll("input[type='checkbox']").forEach(cb => {
     const key = `${cb.dataset.day}-${cb.dataset.time}`;
     cb.checked = progress[key] || false;
