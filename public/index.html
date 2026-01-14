@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Micro Workouts</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="login-screen" class="login-screen" style="display: none;">
+    <div class="login-container">
+      <h1>My Micro Workouts</h1>
+      <p>Track your daily workout progress throughout the week</p>
+      
+      <div class="login-buttons">
+        <button id="google-login" class="oauth-button google-button">
+          <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg"><g fill="none" fill-rule="evenodd"><path d="M17.6 9.2l-.1-1.8H9v3.4h4.8C13.6 12 13 13 12 13.6v2.2h3a8.8 8.8 0 0 0 2.6-6.6z" fill="#4285F4"/><path d="M9 18c2.4 0 4.5-.8 6-2.2l-3-2.2a5.4 5.4 0 0 1-8-2.9H1V13a9 9 0 0 0 8 5z" fill="#34A853"/><path d="M4 10.7a5.4 5.4 0 0 1 0-3.4V5H1a9 9 0 0 0 0 8l3-2.3z" fill="#FBBC05"/><path d="M9 3.6c1.3 0 2.5.4 3.4 1.3L15 2.3A9 9 0 0 0 1 5l3 2.4a5.4 5.4 0 0 1 5-3.7z" fill="#EA4335"/></g></svg>
+          Sign in with Google
+        </button>
+        
+        <button id="microsoft-login" class="oauth-button microsoft-button">
+          <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg"><path fill="#f25022" d="M0 0h8.5v8.5H0z"/><path fill="#00a4ef" d="M9.5 0H18v8.5H9.5z"/><path fill="#7fba00" d="M0 9.5h8.5V18H0z"/><path fill="#ffb900" d="M9.5 9.5H18V18H9.5z"/></svg>
+          Sign in with Microsoft
+        </button>
+      </div>
+      
+      <div id="error-message" class="error-message" style="display: none;"></div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app-screen" class="container" style="display: none;">
+    <div class="user-header">
+      <div class="user-info">
+        <img id="user-avatar" class="user-avatar" src="" alt="" style="display: none;">
+        <span id="user-name">Loading...</span>
+      </div>
+      <button id="logout-button" class="logout-button">Logout</button>
+    </div>
+
+    <h1>My Micro Workouts</h1>
+    <p>Track your daily workout progress throughout the week</p>
+    
+    <div class="progress-container">
+      <div class="progress-bar">
+        <div id="progress" class="progress-fill"></div>
+      </div>
+      <div id="progress-text" class="progress-text">0% done</div>
+    </div>
+    
+    <div class="table-container">
+      <table id="workout-table">
+        <!-- Table will be dynamically generated -->
+      </table>
+    </div>
+    
+    <button id="reset-button" class="reset-button">Reset Week</button>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>
