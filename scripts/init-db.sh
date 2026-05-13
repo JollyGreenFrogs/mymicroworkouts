@@ -9,14 +9,18 @@ echo "🗄️  My Micro Workouts - Database Setup"
 echo "======================================"
 echo ""
 
-# Check if wrangler is installed
-if ! command -v wrangler &> /dev/null; then
+# Prefer local wrangler from node_modules, fall back to global
+if [ -x "./node_modules/.bin/wrangler" ]; then
+    WRANGLER="./node_modules/.bin/wrangler"
+elif command -v wrangler &> /dev/null; then
+    WRANGLER="wrangler"
+else
     echo "❌ Error: Wrangler CLI is not installed."
-    echo "Please install it with: npm install -g wrangler"
+    echo "Please run: npm install"
     exit 1
 fi
 
-echo "✓ Wrangler CLI found"
+echo "✓ Wrangler CLI found ($WRANGLER)"
 echo ""
 
 # Parse command line arguments
@@ -39,7 +43,7 @@ if [ "$ENV" = "production" ]; then
     echo "🔍 Checking if database '$DB_NAME' exists..."
     
     # List databases and check if ours exists
-    if wrangler d1 list | grep -q "$DB_NAME"; then
+    if $WRANGLER d1 list | grep -q "$DB_NAME"; then
         echo "✓ Database '$DB_NAME' already exists"
     else
         echo "❌ Database '$DB_NAME' not found"
@@ -57,9 +61,9 @@ echo "🚀 Running database migration..."
 echo ""
 
 if [ "$ENV" = "local" ]; then
-    wrangler d1 execute $DB_NAME --local --file=./db/schema.sql
+    $WRANGLER d1 execute $DB_NAME --local --file=./db/schema.sql
 else
-    wrangler d1 execute $DB_NAME --file=./db/schema.sql
+    $WRANGLER d1 execute $DB_NAME --file=./db/schema.sql
 fi
 
 echo ""
@@ -71,9 +75,9 @@ echo "🔍 Verifying tables..."
 echo ""
 
 if [ "$ENV" = "local" ]; then
-    wrangler d1 execute $DB_NAME --local --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    $WRANGLER d1 execute $DB_NAME --local --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 else
-    wrangler d1 execute $DB_NAME --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
+    $WRANGLER d1 execute $DB_NAME --command="SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
 fi
 
 echo ""

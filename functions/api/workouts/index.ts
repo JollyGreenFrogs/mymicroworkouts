@@ -1,5 +1,5 @@
 // API endpoint to manage workouts
-import { Env, getSessionFromCookie, validateSession, generateUUID, getWeekStart } from '../../../src/auth';
+import { Env, getAuthPayload, generateUUID, getWeekStart } from '../../../src/auth';
 
 interface Workout {
   id: string;
@@ -14,22 +14,15 @@ interface Workout {
 // GET /api/workouts - Get all workouts for current week
 export async function onRequestGet(context: { request: Request; env: Env }) {
   const { request, env } = context;
-  
-  const sessionId = getSessionFromCookie(request);
-  if (!sessionId) {
+
+  const payload = await getAuthPayload(request, env.JWT_SECRET_KEY);
+  if (!payload) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   }
-  
-  const user = await validateSession(env.DB, sessionId);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Invalid session' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  const userId = payload.sub;
   
   const url = new URL(request.url);
   const weekStart = url.searchParams.get('week_start') || getWeekStart();
@@ -40,7 +33,7 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
       FROM workouts
       WHERE user_id = ? AND week_start = ?
       ORDER BY time, day
-    `).bind(user.id, weekStart).all();
+    `).bind(userId, weekStart).all();
     
     return new Response(JSON.stringify({ workouts: workouts.results || [] }), {
       status: 200,
@@ -58,22 +51,15 @@ export async function onRequestGet(context: { request: Request; env: Env }) {
 // POST /api/workouts - Create or update a workout
 export async function onRequestPost(context: { request: Request; env: Env }) {
   const { request, env } = context;
-  
-  const sessionId = getSessionFromCookie(request);
-  if (!sessionId) {
+
+  const payload = await getAuthPayload(request, env.JWT_SECRET_KEY);
+  if (!payload) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   }
-  
-  const user = await validateSession(env.DB, sessionId);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Invalid session' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  const userId = payload.sub;
   
   let body;
   try {
@@ -116,7 +102,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
     const existing = await env.DB.prepare(`
       SELECT id FROM workouts
       WHERE user_id = ? AND day = ? AND time = ? AND week_start = ?
-    `).bind(user.id, day, time, weekStartDate).first<{ id: string }>();
+    `).bind(userId, day, time, weekStartDate).first<{ id: string }>();
     
     if (existing) {
       // Update existing workout
@@ -136,7 +122,7 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
       await env.DB.prepare(`
         INSERT INTO workouts (id, user_id, day, time, exercise, completed, week_start)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).bind(workoutId, user.id, day, time, exercise, completed ? 1 : 0, weekStartDate).run();
+      `).bind(workoutId, userId, day, time, exercise, completed ? 1 : 0, weekStartDate).run();
       
       return new Response(JSON.stringify({ id: workoutId, success: true }), {
         status: 201,
@@ -155,22 +141,15 @@ export async function onRequestPost(context: { request: Request; env: Env }) {
 // DELETE /api/workouts - Reset all workouts for the week
 export async function onRequestDelete(context: { request: Request; env: Env }) {
   const { request, env } = context;
-  
-  const sessionId = getSessionFromCookie(request);
-  if (!sessionId) {
+
+  const payload = await getAuthPayload(request, env.JWT_SECRET_KEY);
+  if (!payload) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' }
     });
   }
-  
-  const user = await validateSession(env.DB, sessionId);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Invalid session' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  const userId = payload.sub;
   
   const url = new URL(request.url);
   const weekStart = url.searchParams.get('week_start') || getWeekStart();
@@ -179,7 +158,7 @@ export async function onRequestDelete(context: { request: Request; env: Env }) {
     await env.DB.prepare(`
       DELETE FROM workouts
       WHERE user_id = ? AND week_start = ?
-    `).bind(user.id, weekStart).run();
+    `).bind(userId, weekStart).run();
     
     return new Response(JSON.stringify({ success: true }), {
       status: 200,

@@ -1,0 +1,42 @@
+# docker-compose.yml — MicroWorkouts local development
+# Runs the jgf-auth FastAPI sidecar + its PostgreSQL database.
+# The Cloudflare Workers app (wrangler pages dev) runs separately via ./dev.sh.
+#
+# Usage:
+#   1. cp auth-sidecar/.env.example auth-sidecar/.env  (fill in DATA_ENCRYPTION_KEY + JWT_SECRET_KEY)
+#   2. docker compose up --build
+#   3. In another terminal: ./dev.sh
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mwauth
+      POSTGRES_PASSWORD: mwauth
+      POSTGRES_DB: mwauth
+    # No host port exposed — sidecar connects internally via Docker network
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mwauth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-sidecar:
+    build: ./auth-sidecar
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    env_file:
+      - ./auth-sidecar/.env
+    environment:
+      # Override DATABASE_URL to use the docker-internal hostname
+      DATABASE_URL: postgresql://mwauth:mwauth@postgres:5432/mwauth
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

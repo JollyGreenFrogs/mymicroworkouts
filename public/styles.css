@@ -107,42 +107,80 @@ body {
   background: var(--border);
 }
 
-.login-buttons {
+.auth-form {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 4px;
 }
 
-.oauth-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+.auth-input {
   width: 100%;
-  padding: 14px 20px;
+  padding: 13px 16px;
   border: 2px solid var(--border);
   background: var(--surface);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  color: var(--text);
+  transition: border-color var(--transition);
+  box-sizing: border-box;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.auth-btn {
+  width: 100%;
+  padding: 14px 20px;
+  border: none;
   border-radius: var(--radius-sm);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
-  color: var(--text);
 }
 
-.oauth-btn:hover {
-  background: var(--bg);
+.primary-btn {
+  background: var(--primary);
+  color: #fff;
+}
+
+.primary-btn:hover {
+  background: var(--primary-dark, #4f46e5);
   transform: translateY(-1px);
   box-shadow: var(--shadow);
 }
 
-.google-btn:hover  { border-color: #4285F4; }
-.microsoft-btn:hover { border-color: #00a4ef; }
+.primary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
 
-.btn-icon { flex-shrink: 0; }
+.auth-switch {
+  margin-top: 14px;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.auth-switch a {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-hint {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0 0 8px;
+  text-align: center;
+}
 
 .error-banner {
-  margin-top: 20px;
+  margin-top: 16px;
   padding: 12px 16px;
   background: #FEE2E2;
   border: 1px solid #FECACA;
@@ -150,6 +188,17 @@ body {
   color: #B91C1C;
   font-size: 0.9rem;
 }
+
+.success-banner {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #DCFCE7;
+  border: 1px solid #BBF7D0;
+  border-radius: var(--radius-sm);
+  color: #15803D;
+  font-size: 0.9rem;
+}
+
 
 /* ================================================================
    APP LAYOUT
@@ -610,6 +659,124 @@ body {
   flex-shrink: 0;
 }
 
+/* How-to button */
+.how-btn {
+  flex-shrink: 0;
+  margin-left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.how-btn:hover,
+.how-btn-active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+/* Sets stepper */
+.sets-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.stepper-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+.stepper-btn:not(:disabled):hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.stepper-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.stepper-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 32px;
+  text-align: center;
+}
+
+.stepper-total {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.stepper-done .stepper-val {
+  color: #30D158;
+}
+.stepper-done .stepper-btn.stepper-minus {
+  border-color: #30D158;
+  color: #30D158;
+}
+.stepper-done .stepper-btn.stepper-minus:hover {
+  background: #30D158;
+  color: #fff;
+}
+
+/* How-to tip panel */
+.how-panel {
+  margin: 0 0 6px 36px;
+  padding: 10px 12px;
+  background: var(--card-hover, rgba(0,0,0,0.03));
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+@media (prefers-color-scheme: dark) {
+  .how-panel { background: rgba(255,255,255,0.05); }
+}
+
+.how-img-slot {
+  margin-bottom: 8px;
+}
+
+.how-img {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.how-img-loading {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
 .exercise-row.exercise-alternative { background: #FFFBEB; }
 .exercise-row.exercise-alternative:hover { background: #FEF3C7; }
 
@@ -754,6 +921,83 @@ body {
 }
 
 .week-check.checked { color: var(--text); font-weight: 600; }
+
+/* ================================================================
+   PROGRAMS VIEW
+   ================================================================ */
+.program-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.program-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.program-card-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(91,138,245,0.15);
+}
+
+.program-card-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+  width: 44px;
+  text-align: center;
+}
+
+.program-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.program-card-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.program-card-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.program-active-badge {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.program-select-btn {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.program-select-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
 
 /* ================================================================
    INJURY VIEW

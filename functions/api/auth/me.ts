@@ -1,27 +1,19 @@
-// API endpoint to get current user info
-import { Env, getSessionFromCookie, validateSession } from '../../../src/auth';
+// Verify the JWT and return the current user's identity
+import { Env, getAuthPayload } from '../../../src/auth';
 
 export async function onRequestGet(context: { request: Request; env: Env }) {
   const { request, env } = context;
-  
-  const sessionId = getSessionFromCookie(request);
-  if (!sessionId) {
+
+  const payload = await getAuthPayload(request, env.JWT_SECRET_KEY);
+  if (!payload) {
     return new Response(JSON.stringify({ error: 'Not authenticated' }), {
       status: 401,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
   }
-  
-  const user = await validateSession(env.DB, sessionId);
-  if (!user) {
-    return new Response(JSON.stringify({ error: 'Invalid session' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
-  return new Response(JSON.stringify({ user }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' }
-  });
+
+  return new Response(
+    JSON.stringify({ user: { code: payload.sub, role: payload.role } }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
+  );
 }

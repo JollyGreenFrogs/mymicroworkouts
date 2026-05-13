@@ -6,8 +6,9 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "mymicroworkouts-db"
-database_id = "" # Set this during deployment
+database_id = "00000000-0000-0000-0000-000000000000" # placeholder for local dev; set real ID for production
 
 # Environment variables (secrets should be set via Cloudflare dashboard)
 [vars]
 ENVIRONMENT = "production"
+AUTH_SIDECAR_URL = "" # Set to sidecar URL in production (e.g. https://auth.yourdomain.com)
