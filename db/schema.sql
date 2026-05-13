@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS workouts (
 
 CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id);
 CREATE INDEX IF NOT EXISTS idx_workouts_week ON workouts(user_id, week_start);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_workouts_unique ON workouts(user_id, day, time, week_start);
+-- Each individual exercise is tracked separately (multiple exercises per time slot)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workouts_unique ON workouts(user_id, day, time, exercise, week_start);
 
 -- Trigger to update updated_at timestamp on users
 CREATE TRIGGER IF NOT EXISTS update_users_timestamp 

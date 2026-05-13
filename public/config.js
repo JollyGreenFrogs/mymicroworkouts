@@ -1,31 +1,12 @@
-// Configuration loaded from window object (injected by server)
-// This allows OAuth client IDs to be configured via environment variables
+// Application configuration.
+// window.APP_CONFIG is set inline in index.html before this script loads.
+// This file provides defaults and a helper so app.js can read config safely.
 
-interface Config {
-  googleClientId: string;
-  microsoftClientId: string;
-  baseUrl: string;
-}
-
-// Default configuration (will be overridden by environment)
-const defaultConfig: Config = {
-  googleClientId: '',
-  microsoftClientId: '',
-  baseUrl: window.location.origin
-};
-
-// Get configuration from window or use defaults
-export const config: Config = (window as any).APP_CONFIG || defaultConfig;
-
-// Validate configuration
-export function validateConfig(): boolean {
-  if (!config.googleClientId) {
-    console.warn('Google OAuth client ID not configured');
-    return false;
-  }
-  if (!config.microsoftClientId) {
-    console.warn('Microsoft OAuth client ID not configured');
-    return false;
-  }
-  return true;
-}
+window.APP_CONFIG = Object.assign(
+  {
+    googleClientId: '',
+    microsoftClientId: '',
+    baseUrl: window.location.origin,
+  },
+  window.APP_CONFIG || {}
+);
