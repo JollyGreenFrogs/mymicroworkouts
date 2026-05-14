@@ -114,14 +114,14 @@ steps:
           --name mw-auth-sidecar \
           --restart unless-stopped \
           --link mw-postgres:postgres \
-          -p ${SIDECAR_PORT}:8787 \
-          --env-file ${DEPLOY_DIR}/auth-sidecar/.env \
+          -p $SIDECAR_PORT:8787 \
+          --env-file $DEPLOY_DIR/auth-sidecar/.env \
           mymicroworkouts-auth-sidecar:latest
         sleep 3
         docker logs mw-auth-sidecar --tail 5
 
         # Install npm deps and initialise local D1 database
-        cd ${DEPLOY_DIR}
+        cd $DEPLOY_DIR
         npm install --silent
         rm -rf .wrangler/state/v3/d1
         ./scripts/init-db.sh local 2>&1 | grep -E '(Done|success|✅|✓|error|Error)' || true
@@ -130,7 +130,7 @@ steps:
         pkill -f 'wrangler pages dev' 2>/dev/null || true
         sleep 1
         nohup ./node_modules/.bin/wrangler pages dev public \
-          --ip 0.0.0.0 --port ${APP_PORT} \
+          --ip 0.0.0.0 --port $APP_PORT \
           > /tmp/mymicroworkouts-app.log 2>&1 &
         sleep 3
         echo "=== Wrangler last log lines ==="
