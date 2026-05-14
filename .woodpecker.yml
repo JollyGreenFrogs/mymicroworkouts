@@ -1,7 +1,8 @@
 # Woodpecker CI/CD pipeline for JollyGreenFrogs/mymicroworkouts
 #
 # Triggers:
-#   main branch → type-check → deploy to frost (10.0.27.50)
+#   develop → type-check → unit-tests → e2e-tests
+#   main    → type-check → unit-tests → e2e-tests → deploy-frost
 #
 # Secrets required (set once in Woodpecker UI → Settings → Secrets):
 #   MW_JWT_SECRET_KEY      — HS256 JWT secret shared between wrangler and sidecar
@@ -12,11 +13,13 @@
 
 when:
   event: push
-  branch: main
+  branch:
+    - main
+    - develop
 
 steps:
   # ---------------------------------------------------------------------------
-  # Step 1: TypeScript type-check
+  # Step 1: TypeScript type-check (runs on develop and main)
   # ---------------------------------------------------------------------------
   type-check:
     image: node:22-alpine
@@ -25,7 +28,26 @@ steps:
       - npx tsc --noEmit
 
   # ---------------------------------------------------------------------------
-  # Step 2: Deploy to frost
+  # Step 2: Unit tests (runs on develop and main)
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    image: node:22-alpine
+    commands:
+      - npm ci --ignore-scripts
+      - npm test
+
+  # ---------------------------------------------------------------------------
+  # Step 3: E2E tests — headless Chromium via Playwright (develop and main)
+  # ---------------------------------------------------------------------------
+  e2e-tests:
+    image: mcr.microsoft.com/playwright:v1.60.0-noble
+    commands:
+      - npm ci --ignore-scripts
+      - npx playwright install chromium
+      - npm run test:e2e
+
+  # ---------------------------------------------------------------------------
+  # Step 4: Deploy to frost (main only)
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
