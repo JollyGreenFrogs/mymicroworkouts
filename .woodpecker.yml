@@ -4,9 +4,11 @@
 #   main branch → type-check → deploy to frost (10.0.27.50)
 #
 # Secrets required (set once in Woodpecker UI → Settings → Secrets):
-#   FROST_IP               — IP of frost (e.g. 10.0.27.50)
 #   MW_JWT_SECRET_KEY      — HS256 JWT secret shared between wrangler and sidecar
 #   MW_DATA_ENCRYPTION_KEY — Fernet key used by the auth sidecar (DATA_ENCRYPTION_KEY)
+#
+# Docker context 'frost' (ssh://root@frost) is picked up from the host via the
+# mounted ~/.docker volume — no FROST_IP secret needed.
 
 when:
   event: push
@@ -28,8 +30,6 @@ steps:
   deploy-frost:
     image: docker:27-cli
     environment:
-      FROST_IP:
-        from_secret: frost_ip
       MW_JWT_SECRET_KEY:
         from_secret: mw_jwt_secret_key
       MW_DATA_ENCRYPTION_KEY:
@@ -37,33 +37,32 @@ steps:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
+      - /home/venura/.docker:/root/.docker
     commands:
       - chmod 600 /root/.ssh/id_ed25519
-      - mkdir -p /root/.ssh && printf "Host *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
+      # SSH config: resolve 'frost' hostname and disable strict checking
+      - mkdir -p /root/.ssh && printf "Host frost\n  Hostname 10.0.27.50\n  User root\n  StrictHostKeyChecking no\nHost *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
       - apk add --no-cache rsync openssh-client
 
-      # Build auth-sidecar image locally (CI agent has the jgf-auth clone in context)
-      - docker build -t mymicroworkouts-auth-sidecar:latest ./auth-sidecar
-
-      # Ship image to frost via docker save | docker load
-      - docker save mymicroworkouts-auth-sidecar:latest | ssh root@${FROST_IP} "docker load"
+      # Build auth-sidecar image directly on frost via Docker context
+      - docker --context frost build -t mymicroworkouts-auth-sidecar:latest ./auth-sidecar
 
       # Write frost-specific .dev.vars (URLs point to frost IP)
-      - printf "AUTH_SIDECAR_URL=http://%s:8787\nJWT_SECRET_KEY=%s\nBASE_URL=http://%s:8788\n" "$FROST_IP" "$MW_JWT_SECRET_KEY" "$FROST_IP" > /tmp/frost.dev.vars
+      - printf "AUTH_SIDECAR_URL=http://10.0.27.50:8787\nJWT_SECRET_KEY=%s\nBASE_URL=http://10.0.27.50:8788\n" "$MW_JWT_SECRET_KEY" > /tmp/frost.dev.vars
 
       # Write frost-specific auth-sidecar .env (DATABASE_URL uses docker --link hostname)
-      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://%s:8788\nENVIRONMENT=production\nFRONTEND_URL=http://%s:8788\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" "$FROST_IP" "$FROST_IP" > /tmp/frost.sidecar.env
+      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.50:8788\nENVIRONMENT=production\nFRONTEND_URL=http://10.0.27.50:8788\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /tmp/frost.sidecar.env
 
       # Sync app source to frost (gitignored secrets and generated dirs excluded)
-      - rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='.wrangler' --exclude='auth-sidecar/jgf-auth' --exclude='auth-sidecar/.env' --exclude='.dev.vars' ./ root@${FROST_IP}:/home/venura/mymicroworkouts/
+      - rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='.wrangler' --exclude='auth-sidecar/jgf-auth' --exclude='auth-sidecar/.env' --exclude='.dev.vars' ./ frost:/home/venura/mymicroworkouts/
 
       # Sync frost-specific secrets
-      - rsync -az /tmp/frost.dev.vars root@${FROST_IP}:/home/venura/mymicroworkouts/.dev.vars
-      - rsync -az /tmp/frost.sidecar.env root@${FROST_IP}:/home/venura/mymicroworkouts/auth-sidecar/.env
+      - rsync -az /tmp/frost.dev.vars frost:/home/venura/mymicroworkouts/.dev.vars
+      - rsync -az /tmp/frost.sidecar.env frost:/home/venura/mymicroworkouts/auth-sidecar/.env
 
       # On frost: restart postgres, auth-sidecar, wrangler
       - |
-        ssh root@${FROST_IP} bash -s << 'ENDSSH'
+        ssh frost bash -s << 'ENDSSH'
         set -e
         DEPLOY_DIR=/home/venura/mymicroworkouts
         APP_PORT=8788
