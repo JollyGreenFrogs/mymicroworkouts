@@ -139,3 +139,25 @@ steps:
     when:
       event: push
       branch: main
+
+  # ---------------------------------------------------------------------------
+  # Step 5: Open a GitHub issue when any previous step fails
+  # ---------------------------------------------------------------------------
+  notify-failure:
+    image: alpine/curl
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |
+        curl -sf -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          https://api.github.com/repos/JollyGreenFrogs/mymicroworkouts/issues \
+          -d "{
+            \"title\": \"CI failed on ${CI_COMMIT_BRANCH} (pipeline ${CI_PIPELINE_NUMBER})\",
+            \"body\": \"Pipeline **#${CI_PIPELINE_NUMBER}** failed on branch \`${CI_COMMIT_BRANCH}\`.\n\nCommit: \`${CI_COMMIT_SHA}\`\nAuthor: ${CI_COMMIT_AUTHOR}\nMessage: ${CI_COMMIT_MESSAGE}\n\n[View pipeline](${CI_PIPELINE_URL})\",
+            \"labels\": [\"ci-failure\"]
+          }"
+    when:
+      status: failure
