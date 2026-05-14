@@ -15,6 +15,9 @@ echo "NOTE: The jgf-auth sidecar must be running (docker compose up --build)"
 echo "      before login will work."
 echo ""
 
+# Kill any existing wrangler process on port 8788 first
+fuser -k 8788/tcp 2>/dev/null && sleep 1 || true
+
 # 1. Install dependencies if needed
 if [ ! -d "node_modules" ]; then
     echo "Installing npm dependencies..."
@@ -46,4 +49,4 @@ echo ""
 echo "Starting dev server at http://localhost:8788"
 echo "Press Ctrl+C to stop."
 echo ""
-./node_modules/.bin/wrangler pages dev public --d1=DB
+./node_modules/.bin/wrangler pages dev public
