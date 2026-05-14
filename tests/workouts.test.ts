@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { onRequestGet, onRequestPost, onRequestDelete } from '../functions/api/workouts/index';
 import { mintJWT, validPayload, TEST_SECRET } from './helpers';
+import type { Env } from '../src/auth';
 
 // ─── D1 mock factory ───────────────────────────────────────────────────────
 // Mimics the prepare().bind().all() / .first() / .run() chained D1 API.
@@ -40,7 +41,10 @@ async function makeContext(
   });
 
   const db = makeD1Mock(dbOverrides);
-  const env = { DB: db, JWT_SECRET_KEY: TEST_SECRET, AUTH_SIDECAR_URL: '', BASE_URL: '' };
+  // Cast via unknown — the mock only implements the methods under test; the
+  // full D1Database interface has additional methods (batch, exec, etc.) that
+  // are not exercised by the workouts handler.
+  const env = { DB: db, JWT_SECRET_KEY: TEST_SECRET, AUTH_SIDECAR_URL: '', BASE_URL: '' } as unknown as Env;
   return { context: { request, env }, db };
 }
 
@@ -147,7 +151,7 @@ describe('POST /api/workouts', () => {
       body: 'not json',
     });
     const db = makeD1Mock();
-    const env = { DB: db, JWT_SECRET_KEY: TEST_SECRET, AUTH_SIDECAR_URL: '', BASE_URL: '' };
+    const env = { DB: db, JWT_SECRET_KEY: TEST_SECRET, AUTH_SIDECAR_URL: '', BASE_URL: '' } as unknown as Env;
     const res = await onRequestPost({ request, env });
     expect(res.status).toBe(400);
   });
