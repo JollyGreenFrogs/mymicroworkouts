@@ -13,4 +13,3 @@ dist/
 coverage/
 .nyc_output/
 auth-sidecar/.env
-auth-sidecar/jgf-auth/

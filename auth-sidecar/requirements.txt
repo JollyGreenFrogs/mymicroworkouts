@@ -1,2 +1,2 @@
-./jgf-auth
+jgf-auth
 uvicorn[standard]>=0.27.0

@@ -1,0 +1,120 @@
+# Woodpecker CI/CD pipeline for JollyGreenFrogs/mymicroworkouts
+#
+# Triggers:
+#   main branch → type-check → deploy to frost (10.0.27.50)
+#
+# Secrets required (set once in Woodpecker UI → Settings → Secrets):
+#   FROST_IP               — IP of frost (e.g. 10.0.27.50)
+#   MW_JWT_SECRET_KEY      — HS256 JWT secret shared between wrangler and sidecar
+#   MW_DATA_ENCRYPTION_KEY — Fernet key used by the auth sidecar (DATA_ENCRYPTION_KEY)
+
+when:
+  event: push
+  branch: main
+
+steps:
+  # ---------------------------------------------------------------------------
+  # Step 1: TypeScript type-check
+  # ---------------------------------------------------------------------------
+  type-check:
+    image: node:22-alpine
+    commands:
+      - npm ci --ignore-scripts
+      - npx tsc --noEmit
+
+  # ---------------------------------------------------------------------------
+  # Step 2: Deploy to frost
+  # ---------------------------------------------------------------------------
+  deploy-frost:
+    image: docker:27-cli
+    environment:
+      FROST_IP:
+        from_secret: FROST_IP
+      MW_JWT_SECRET_KEY:
+        from_secret: MW_JWT_SECRET_KEY
+      MW_DATA_ENCRYPTION_KEY:
+        from_secret: MW_DATA_ENCRYPTION_KEY
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
+    commands:
+      - chmod 600 /root/.ssh/id_ed25519
+      - mkdir -p /root/.ssh && printf "Host *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
+      - apk add --no-cache rsync openssh-client
+
+      # Build auth-sidecar image locally (CI agent has the jgf-auth clone in context)
+      - docker build -t mymicroworkouts-auth-sidecar:latest ./auth-sidecar
+
+      # Ship image to frost via docker save | docker load
+      - docker save mymicroworkouts-auth-sidecar:latest | ssh root@${FROST_IP} "docker load"
+
+      # Write frost-specific .dev.vars (URLs point to frost IP)
+      - printf "AUTH_SIDECAR_URL=http://%s:8787\nJWT_SECRET_KEY=%s\nBASE_URL=http://%s:8788\n" "$FROST_IP" "$MW_JWT_SECRET_KEY" "$FROST_IP" > /tmp/frost.dev.vars
+
+      # Write frost-specific auth-sidecar .env (DATABASE_URL uses docker --link hostname)
+      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://%s:8788\nENVIRONMENT=production\nFRONTEND_URL=http://%s:8788\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" "$FROST_IP" "$FROST_IP" > /tmp/frost.sidecar.env
+
+      # Sync app source to frost (gitignored secrets and generated dirs excluded)
+      - rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='.wrangler' --exclude='auth-sidecar/jgf-auth' --exclude='auth-sidecar/.env' --exclude='.dev.vars' ./ root@${FROST_IP}:/home/venura/mymicroworkouts/
+
+      # Sync frost-specific secrets
+      - rsync -az /tmp/frost.dev.vars root@${FROST_IP}:/home/venura/mymicroworkouts/.dev.vars
+      - rsync -az /tmp/frost.sidecar.env root@${FROST_IP}:/home/venura/mymicroworkouts/auth-sidecar/.env
+
+      # On frost: restart postgres, auth-sidecar, wrangler
+      - |
+        ssh root@${FROST_IP} bash -s << 'ENDSSH'
+        set -e
+        DEPLOY_DIR=/home/venura/mymicroworkouts
+        APP_PORT=8788
+        SIDECAR_PORT=8787
+
+        # Ensure postgres container is running (create it on first deploy)
+        if docker inspect mw-postgres >/dev/null 2>&1; then
+          docker start mw-postgres 2>/dev/null || true
+        else
+          docker run -d \
+            --name mw-postgres \
+            --restart unless-stopped \
+            -e POSTGRES_USER=mwauth \
+            -e POSTGRES_PASSWORD=mwauth \
+            -e POSTGRES_DB=mwauth \
+            -v mw-pgdata:/var/lib/postgresql/data \
+            postgres:16-alpine
+          i=0; while [ $i -lt 20 ]; do
+            docker exec mw-postgres pg_isready -U mwauth >/dev/null 2>&1 && break
+            i=$((i+1)); sleep 1
+          done
+        fi
+
+        # Restart auth-sidecar with the freshly loaded image
+        docker rm -f mw-auth-sidecar 2>/dev/null || true
+        docker run -d \
+          --name mw-auth-sidecar \
+          --restart unless-stopped \
+          --link mw-postgres:postgres \
+          -p ${SIDECAR_PORT}:8787 \
+          --env-file ${DEPLOY_DIR}/auth-sidecar/.env \
+          mymicroworkouts-auth-sidecar:latest
+        sleep 3
+        docker logs mw-auth-sidecar --tail 5
+
+        # Install npm deps and initialise local D1 database
+        cd ${DEPLOY_DIR}
+        npm install --silent
+        rm -rf .wrangler/state/v3/d1
+        ./scripts/init-db.sh local 2>&1 | grep -E '(Done|success|✅|✓|error|Error)' || true
+
+        # Restart wrangler pages dev (0.0.0.0 makes it accessible on the LAN)
+        pkill -f 'wrangler pages dev' 2>/dev/null || true
+        sleep 1
+        nohup ./node_modules/.bin/wrangler pages dev public \
+          --ip 0.0.0.0 --port ${APP_PORT} \
+          > /tmp/mymicroworkouts-app.log 2>&1 &
+        sleep 3
+        echo "=== Wrangler last log lines ==="
+        tail -5 /tmp/mymicroworkouts-app.log
+        ENDSSH
+    when:
+      event: push
+      branch: main

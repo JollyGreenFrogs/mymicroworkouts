@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM 10.0.27.50:5005/jgf-python-base:3.12
 
 WORKDIR /app
 
@@ -8,7 +8,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-COPY jgf-auth/ ./jgf-auth/
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
