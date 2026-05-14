@@ -13,6 +13,7 @@ dist/
 coverage/
 .nyc_output/
 auth-sidecar/.env
+auth-sidecar/jgf-auth/
 test-results/
 playwright-report/
 git_clean.sh
