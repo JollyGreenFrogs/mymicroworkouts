@@ -10,6 +10,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "db:migrate": "wrangler d1 execute mymicroworkouts-db --file=./db/schema.sql",
     "db:migrate:local": "wrangler d1 execute mymicroworkouts-db --local --file=./db/schema.sql"
   },
@@ -26,6 +28,7 @@
     "hono": "^4.6.14"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "typescript": "^5.7.2",
     "vitest": "^4.1.6",
     "wrangler": "^4.90.1"
