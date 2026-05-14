@@ -12,11 +12,13 @@
 
 when:
   event: push
-  branch: main
+  branch:
+    - main
+    - develop
 
 steps:
   # ---------------------------------------------------------------------------
-  # Step 1: TypeScript type-check
+  # Step 1: TypeScript type-check (runs on develop and main)
   # ---------------------------------------------------------------------------
   type-check:
     image: node:22-alpine
@@ -25,7 +27,7 @@ steps:
       - npx tsc --noEmit
 
   # ---------------------------------------------------------------------------
-  # Step 2: Deploy to frost
+  # Step 2: Deploy to frost (main only)
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
