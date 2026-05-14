@@ -29,11 +29,11 @@ steps:
     image: docker:27-cli
     environment:
       FROST_IP:
-        from_secret: FROST_IP
+        from_secret: frost_ip
       MW_JWT_SECRET_KEY:
-        from_secret: MW_JWT_SECRET_KEY
+        from_secret: mw_jwt_secret_key
       MW_DATA_ENCRYPTION_KEY:
-        from_secret: MW_DATA_ENCRYPTION_KEY
+        from_secret: mw_data_encryption_key
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
