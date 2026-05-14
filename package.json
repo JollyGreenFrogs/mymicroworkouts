@@ -8,6 +8,8 @@
     "dev": "wrangler pages dev public --d1=DB --binding DB=mymicroworkouts-db",
     "deploy": "wrangler pages deploy public",
     "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "db:migrate": "wrangler d1 execute mymicroworkouts-db --file=./db/schema.sql",
     "db:migrate:local": "wrangler d1 execute mymicroworkouts-db --local --file=./db/schema.sql"
   },
@@ -25,6 +27,7 @@
   },
   "devDependencies": {
     "typescript": "^5.7.2",
+    "vitest": "^4.1.6",
     "wrangler": "^4.90.1"
   }
 }

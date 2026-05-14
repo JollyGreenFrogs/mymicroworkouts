@@ -27,7 +27,16 @@ steps:
       - npx tsc --noEmit
 
   # ---------------------------------------------------------------------------
-  # Step 2: Deploy to frost (main only)
+  # Step 2: Unit tests (runs on develop and main)
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    image: node:22-alpine
+    commands:
+      - npm ci --ignore-scripts
+      - npm test
+
+  # ---------------------------------------------------------------------------
+  # Step 3: Deploy to frost (main only)
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
