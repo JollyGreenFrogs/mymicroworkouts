@@ -25,6 +25,7 @@ services:
 
   auth-sidecar:
     build: ./auth-sidecar
+    image: mymicroworkouts-auth-sidecar:prod
     restart: unless-stopped
     # No external port — nginx proxies to this internally
     expose:

@@ -1,8 +1,8 @@
 # Woodpecker CI/CD pipeline for JollyGreenFrogs/mymicroworkouts
 #
 # Triggers:
-#   develop → python-tests → e2e-tests
-#   main    → python-tests → e2e-tests → deploy-frost
+#   develop → python-tests → e2e-tests → deploy-frost-uat  (port 8790)
+#   main    → python-tests → e2e-tests → deploy-frost-prod (port 8788)
 #
 # Secrets required (set once in Woodpecker UI → Settings → Secrets):
 #   MW_JWT_SECRET_KEY      — HS256 JWT secret for the sidecar
@@ -42,7 +42,62 @@ steps:
       - docker compose -f docker-compose.e2e.yml down -v || true
 
   # ---------------------------------------------------------------------------
-  # Step 3: Deploy to frost (main only)
+  # Step 3: Deploy to frost UAT (develop only) — http://10.0.27.50:8790
+  # ---------------------------------------------------------------------------
+  deploy-frost-uat:
+    image: docker:27-cli
+    environment:
+      MW_JWT_SECRET_KEY:
+        from_secret: mw_jwt_secret_key
+      MW_DATA_ENCRYPTION_KEY:
+        from_secret: mw_data_encryption_key
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
+      - /home/venura/.docker:/root/.docker
+    commands:
+      - chmod 600 /root/.ssh/id_ed25519
+      - mkdir -p /root/.ssh && printf "Host frost\n  Hostname 10.0.27.50\n  User root\n  StrictHostKeyChecking no\nHost *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
+      - apk add --no-cache rsync openssh-client
+
+      # Build sidecar image tagged :uat directly on frost
+      - docker --context frost build -t mymicroworkouts-auth-sidecar:uat ./auth-sidecar
+
+      # Write the UAT sidecar .env (ALLOWED_ORIGINS points to port 8790)
+      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.50:8790\nENVIRONMENT=uat\nFRONTEND_URL=http://10.0.27.50:8790\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /tmp/uat.sidecar.env
+
+      # Sync source to frost
+      - rsync -az --delete
+          --exclude='.git'
+          --exclude='node_modules'
+          --exclude='auth-sidecar/jgf-auth'
+          --exclude='auth-sidecar/.env'
+          ./ frost:/home/venura/mymicroworkouts-uat/
+      - rsync -az /tmp/uat.sidecar.env frost:/home/venura/mymicroworkouts-uat/auth-sidecar/.env
+
+      # On frost: bring up the UAT stack using the uat overlay, separate project name
+      - |
+        ssh frost bash -s << 'ENDSSH'
+        set -e
+        cd /home/venura/mymicroworkouts-uat
+        docker compose -f docker-compose.yml -f docker-compose.uat.yml -p mymicroworkouts-uat up -d postgres auth-sidecar nginx
+        # Wait for sidecar to be healthy
+        i=0; while [ $i -lt 30 ]; do
+          docker compose -p mymicroworkouts-uat exec -T auth-sidecar python -c \
+            "import urllib.request; urllib.request.urlopen('http://localhost:8787/health')" \
+            2>/dev/null && break
+          i=$((i+1)); sleep 2
+        done
+        # Run Alembic migrations against the UAT DB
+        docker compose -p mymicroworkouts-uat exec -T auth-sidecar alembic upgrade head
+        echo "=== UAT deploy complete — http://10.0.27.50:8790 ==="
+        ENDSSH
+    when:
+      event: push
+      branch: develop
+
+  # ---------------------------------------------------------------------------
+  # Step 4: Deploy to frost production (main only) — http://10.0.27.50:8788
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
