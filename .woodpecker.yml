@@ -40,7 +40,7 @@ steps:
   # Step 3: E2E tests — headless Chromium via Playwright (develop and main)
   # ---------------------------------------------------------------------------
   e2e-tests:
-    image: mcr.microsoft.com/playwright:v1.53.0-noble
+    image: mcr.microsoft.com/playwright:v1.60.0-noble
     commands:
       - npm ci --ignore-scripts
       - npx playwright install chromium

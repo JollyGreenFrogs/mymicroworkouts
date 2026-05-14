@@ -33,58 +33,7 @@ test.describe('Workout API', () => {
     expect(res.status()).toBe(401);
   });
 
-  // ── Authenticated CRUD ───────────────────────────────────────────────────
-
-  test('GET /api/workouts returns empty list for new user', async ({ request }) => {
-    const res = await request.get('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(Array.isArray(body.workouts)).toBe(true);
-  });
-
-  test('POST /api/workouts creates a workout (201)', async ({ request }) => {
-    const res = await request.post('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { day: 'Monday', time: '09:00', exercise: 'Push-Ups', completed: false },
-    });
-    expect(res.status()).toBe(201);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(typeof body.id).toBe('string');
-  });
-
-  test('GET /api/workouts returns the created workout', async ({ request }) => {
-    const res = await request.get('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
-    expect(workout).toBeDefined();
-    expect(workout.day).toBe('Monday');
-    expect(workout.completed).toBe(0);
-  });
-
-  test('POST /api/workouts updates existing workout (200)', async ({ request }) => {
-    const res = await request.post('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-      data: { day: 'Monday', time: '09:00', exercise: 'Push-Ups', completed: true },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-  });
-
-  test('GET /api/workouts shows workout as completed after update', async ({ request }) => {
-    const res = await request.get('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    const body = await res.json();
-    const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
-    expect(workout.completed).toBe(1);
-  });
+  // ── Input validation ─────────────────────────────────────────────────────
 
   test('POST /api/workouts returns 400 for missing fields', async ({ request }) => {
     const res = await request.post('/api/workouts', {
@@ -94,20 +43,71 @@ test.describe('Workout API', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('DELETE /api/workouts clears workouts for the week', async ({ request }) => {
-    const res = await request.delete('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.success).toBe(true);
-  });
+  // ── CRUD lifecycle (explicit ordering via test steps) ────────────────────
+  //
+  // These steps are intentionally sequential: create → read → update →
+  // read → delete → read. Each step depends on the previous one. Using a
+  // single test with test.step() makes that dependency explicit and prevents
+  // accidental breakage if parallelism is ever turned on.
+  test('CRUD lifecycle: create → update → delete', async ({ request }) => {
+    const authHeaders = { Authorization: `Bearer ${token}` };
 
-  test('GET /api/workouts is empty after delete', async ({ request }) => {
-    const res = await request.get('/api/workouts', {
-      headers: { Authorization: `Bearer ${token}` },
+    await test.step('initial GET returns a list', async () => {
+      const res = await request.get('/api/workouts', { headers: authHeaders });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body.workouts)).toBe(true);
     });
-    const body = await res.json();
-    expect(body.workouts).toHaveLength(0);
+
+    await test.step('POST creates a workout (201)', async () => {
+      const res = await request.post('/api/workouts', {
+        headers: authHeaders,
+        data: { day: 'Monday', time: '09:00', exercise: 'Push-Ups', completed: false },
+      });
+      expect(res.status()).toBe(201);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+      expect(typeof body.id).toBe('string');
+    });
+
+    await test.step('GET returns the created workout', async () => {
+      const res = await request.get('/api/workouts', { headers: authHeaders });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
+      expect(workout).toBeDefined();
+      expect(workout.day).toBe('Monday');
+      expect(workout.completed).toBe(0);
+    });
+
+    await test.step('POST updates existing workout to completed (200)', async () => {
+      const res = await request.post('/api/workouts', {
+        headers: authHeaders,
+        data: { day: 'Monday', time: '09:00', exercise: 'Push-Ups', completed: true },
+      });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+    });
+
+    await test.step('GET shows workout as completed', async () => {
+      const res = await request.get('/api/workouts', { headers: authHeaders });
+      const body = await res.json();
+      const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
+      expect(workout.completed).toBe(1);
+    });
+
+    await test.step('DELETE clears workouts for the week', async () => {
+      const res = await request.delete('/api/workouts', { headers: authHeaders });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.success).toBe(true);
+    });
+
+    await test.step('GET is empty after delete', async () => {
+      const res = await request.get('/api/workouts', { headers: authHeaders });
+      const body = await res.json();
+      expect(body.workouts).toHaveLength(0);
+    });
   });
 });
