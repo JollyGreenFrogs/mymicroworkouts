@@ -16,8 +16,8 @@ services:
   auth-sidecar:
     image: mymicroworkouts-auth-sidecar:uat
     environment:
-      ALLOWED_ORIGINS: http://10.0.27.50:8790
-      FRONTEND_URL: http://10.0.27.50:8790
+      ALLOWED_ORIGINS: http://10.0.27.51:8790
+      FRONTEND_URL: http://10.0.27.51:8790
 
   nginx:
     ports:
