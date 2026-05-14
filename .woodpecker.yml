@@ -43,6 +43,7 @@ steps:
 
   # ---------------------------------------------------------------------------
   # Step 3: Deploy to frogjump UAT (develop only) — http://10.0.27.51:8790
+  # CI runner is on frogjump — use the local Docker socket directly.
   # ---------------------------------------------------------------------------
   deploy-frost-uat:
     image: docker:27-cli
@@ -53,29 +54,15 @@ steps:
         from_secret: mw_data_encryption_key
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
-      - /home/venura/.docker:/root/.docker
     commands:
-      - chmod 600 /root/.ssh/id_ed25519
-
-      # Build sidecar image tagged :uat — CI runs on frogjump so the local socket is frogjump's Docker
+      # Build both images locally (frogjump's Docker socket)
       - docker build -t mymicroworkouts-auth-sidecar:uat ./auth-sidecar
+      - docker build -t mymicroworkouts-nginx:uat --file nginx/Dockerfile .
 
-      # Write the UAT sidecar .env and sync files to the deploy dir on frogjump
-      - mkdir -p /home/venura/mymicroworkouts-uat/auth-sidecar
-      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.51:8790\nENVIRONMENT=uat\nFRONTEND_URL=http://10.0.27.51:8790\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /home/venura/mymicroworkouts-uat/auth-sidecar/.env
+      # Bring up UAT stack — compose reads files from the CI workspace,
+      # MW_JWT_SECRET_KEY / MW_DATA_ENCRYPTION_KEY come from the step environment above
+      - docker compose -f docker-compose.yml -f docker-compose.uat.yml -p mymicroworkouts-uat up -d postgres auth-sidecar nginx
 
-      # Copy source files into the UAT deploy dir (exclude secrets and generated dirs)
-      - apk add --no-cache rsync
-      - rsync -az --delete
-          --exclude='.git'
-          --exclude='node_modules'
-          --exclude='auth-sidecar/jgf-auth'
-          --exclude='auth-sidecar/.env'
-          ./ /home/venura/mymicroworkouts-uat/
-
-      # Bring up UAT stack (local Docker socket — we are on frogjump)
-      - docker compose -f /home/venura/mymicroworkouts-uat/docker-compose.yml -f /home/venura/mymicroworkouts-uat/docker-compose.uat.yml -p mymicroworkouts-uat up -d postgres auth-sidecar nginx
       # Run Alembic migrations
       - docker compose -p mymicroworkouts-uat exec -T auth-sidecar alembic upgrade head
       - echo "=== UAT deploy complete — http://10.0.27.51:8790 ==="
@@ -85,6 +72,7 @@ steps:
 
   # ---------------------------------------------------------------------------
   # Step 4: Deploy to frost production (main only) — http://10.0.27.50:8788
+  # Uses Docker context 'frost' — no rsync, no SSH.
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
@@ -94,33 +82,18 @@ steps:
       MW_DATA_ENCRYPTION_KEY:
         from_secret: mw_data_encryption_key
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /home/venura/.ssh/id_ed25519:/root/.ssh/id_ed25519
       - /home/venura/.docker:/root/.docker
     commands:
-      - chmod 600 /root/.ssh/id_ed25519
-      - mkdir -p /root/.ssh && printf "Host frost\n  Hostname 10.0.27.50\n  User root\n  StrictHostKeyChecking no\nHost *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
-      - apk add --no-cache rsync openssh-client
+      # Build both images on frost via Docker context (build context sent from CI)
+      - docker --context frost build -t mymicroworkouts-auth-sidecar:prod ./auth-sidecar
+      - docker --context frost build -t mymicroworkouts-nginx:prod --file nginx/Dockerfile .
 
-      # Build the auth-sidecar image directly on frost
-      - docker --context frost build -t mymicroworkouts-auth-sidecar:latest ./auth-sidecar
+      # Bring up prod stack on frost — compose runs locally, talks to frost's daemon,
+      # MW_JWT_SECRET_KEY / MW_DATA_ENCRYPTION_KEY come from the step environment above
+      - docker --context frost compose -f docker-compose.yml up -d postgres auth-sidecar nginx
 
-      # Write the sidecar .env for frost
-      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.50:8788\nENVIRONMENT=production\nFRONTEND_URL=http://10.0.27.50:8788\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /tmp/frost.sidecar.env
-
-      # Sync source to frost (exclude secrets and large generated dirs)
-      - rsync -az --delete
-          --exclude='.git'
-          --exclude='node_modules'
-          --exclude='auth-sidecar/jgf-auth'
-          --exclude='auth-sidecar/.env'
-          ./ frost:/home/venura/mymicroworkouts/
-      - rsync -az /tmp/frost.sidecar.env frost:/home/venura/mymicroworkouts/auth-sidecar/.env
-
-      # Bring up prod stack on frost via Docker context
-      - docker --context frost compose -f /home/venura/mymicroworkouts/docker-compose.yml up -d postgres auth-sidecar nginx
-      # Run Alembic migrations
-      - docker --context frost compose -f /home/venura/mymicroworkouts/docker-compose.yml exec -T auth-sidecar alembic upgrade head
+      # Run Alembic migrations on frost
+      - docker --context frost compose -f docker-compose.yml exec -T auth-sidecar alembic upgrade head
       - echo "=== Deploy complete — http://10.0.27.50:8788 ==="
     when:
       event: push

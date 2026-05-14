@@ -1,12 +1,12 @@
-# docker-compose.uat.yml — UAT overlay for develop branch deployments on frost.
+# docker-compose.uat.yml — UAT overlay for develop branch deployments on frogjump.
 # Applied on top of docker-compose.yml:
 #   docker compose -f docker-compose.yml -f docker-compose.uat.yml -p mymicroworkouts-uat up -d
 #
 # Differences from production:
 #   - nginx exposed on port 8790 (prod is 8788)
 #   - separate pgdata-uat volume so UAT and prod data never mix
-#   - sidecar image tagged :uat so it stays independent from :prod
-#   - ALLOWED_ORIGINS / FRONTEND_URL point to port 8790
+#   - images tagged :uat so they stay independent from :prod
+#   - ALLOWED_ORIGINS / FRONTEND_URL point to frogjump port 8790
 
 services:
   postgres:
@@ -17,9 +17,11 @@ services:
     image: mymicroworkouts-auth-sidecar:uat
     environment:
       ALLOWED_ORIGINS: http://10.0.27.51:8790
+      ENVIRONMENT: uat
       FRONTEND_URL: http://10.0.27.51:8790
 
   nginx:
+    image: mymicroworkouts-nginx:uat
     ports:
       - "8790:80"
 
