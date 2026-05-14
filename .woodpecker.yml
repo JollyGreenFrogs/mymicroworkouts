@@ -57,41 +57,28 @@ steps:
       - /home/venura/.docker:/root/.docker
     commands:
       - chmod 600 /root/.ssh/id_ed25519
-      - mkdir -p /root/.ssh && printf "Host frogjump\n  Hostname 10.0.27.51\n  User venura\n  StrictHostKeyChecking no\nHost frost\n  Hostname 10.0.27.50\n  User root\n  StrictHostKeyChecking no\nHost *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
-      - apk add --no-cache rsync openssh-client
 
-      # Build sidecar image tagged :uat directly on frogjump
-      - docker --context frogjump build -t mymicroworkouts-auth-sidecar:uat ./auth-sidecar
+      # Build sidecar image tagged :uat — CI runs on frogjump so the local socket is frogjump's Docker
+      - docker build -t mymicroworkouts-auth-sidecar:uat ./auth-sidecar
 
-      # Write the UAT sidecar .env (ALLOWED_ORIGINS points to port 8790)
-      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.51:8790\nENVIRONMENT=uat\nFRONTEND_URL=http://10.0.27.51:8790\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /tmp/uat.sidecar.env
+      # Write the UAT sidecar .env and sync files to the deploy dir on frogjump
+      - mkdir -p /home/venura/mymicroworkouts-uat/auth-sidecar
+      - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.51:8790\nENVIRONMENT=uat\nFRONTEND_URL=http://10.0.27.51:8790\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /home/venura/mymicroworkouts-uat/auth-sidecar/.env
 
-      # Sync source to frogjump
+      # Copy source files into the UAT deploy dir (exclude secrets and generated dirs)
+      - apk add --no-cache rsync
       - rsync -az --delete
           --exclude='.git'
           --exclude='node_modules'
           --exclude='auth-sidecar/jgf-auth'
           --exclude='auth-sidecar/.env'
-          ./ frogjump:/home/venura/mymicroworkouts-uat/
-      - rsync -az /tmp/uat.sidecar.env frogjump:/home/venura/mymicroworkouts-uat/auth-sidecar/.env
+          ./ /home/venura/mymicroworkouts-uat/
 
-      # On frogjump: bring up the UAT stack using the uat overlay, separate project name
-      - |
-        ssh frogjump bash -s << 'ENDSSH'
-        set -e
-        cd /home/venura/mymicroworkouts-uat
-        docker compose -f docker-compose.yml -f docker-compose.uat.yml -p mymicroworkouts-uat up -d postgres auth-sidecar nginx
-        # Wait for sidecar to be healthy
-        i=0; while [ $i -lt 30 ]; do
-          docker compose -p mymicroworkouts-uat exec -T auth-sidecar python -c \
-            "import urllib.request; urllib.request.urlopen('http://localhost:8787/health')" \
-            2>/dev/null && break
-          i=$((i+1)); sleep 2
-        done
-        # Run Alembic migrations against the UAT DB
-        docker compose -p mymicroworkouts-uat exec -T auth-sidecar alembic upgrade head
-        echo "=== UAT deploy complete — http://10.0.27.51:8790 ==="
-        ENDSSH
+      # Bring up UAT stack (local Docker socket — we are on frogjump)
+      - docker compose -f /home/venura/mymicroworkouts-uat/docker-compose.yml -f /home/venura/mymicroworkouts-uat/docker-compose.uat.yml -p mymicroworkouts-uat up -d postgres auth-sidecar nginx
+      # Run Alembic migrations
+      - docker compose -p mymicroworkouts-uat exec -T auth-sidecar alembic upgrade head
+      - echo "=== UAT deploy complete — http://10.0.27.51:8790 ==="
     when:
       event: push
       branch: develop
@@ -130,23 +117,11 @@ steps:
           ./ frost:/home/venura/mymicroworkouts/
       - rsync -az /tmp/frost.sidecar.env frost:/home/venura/mymicroworkouts/auth-sidecar/.env
 
-      # On frost: bring up postgres + sidecar + nginx via docker compose
-      - |
-        ssh frost bash -s << 'ENDSSH'
-        set -e
-        cd /home/venura/mymicroworkouts
-        docker compose up -d postgres auth-sidecar nginx
-        # Wait for sidecar to be healthy
-        i=0; while [ $i -lt 30 ]; do
-          docker compose exec -T auth-sidecar python -c \
-            "import urllib.request; urllib.request.urlopen('http://localhost:8787/health')" \
-            2>/dev/null && break
-          i=$((i+1)); sleep 2
-        done
-        # Run Alembic migrations
-        docker compose exec -T auth-sidecar alembic upgrade head
-        echo "=== Deploy complete — http://10.0.27.50:8788 ==="
-        ENDSSH
+      # Bring up prod stack on frost via Docker context
+      - docker --context frost compose -f /home/venura/mymicroworkouts/docker-compose.yml up -d postgres auth-sidecar nginx
+      # Run Alembic migrations
+      - docker --context frost compose -f /home/venura/mymicroworkouts/docker-compose.yml exec -T auth-sidecar alembic upgrade head
+      - echo "=== Deploy complete — http://10.0.27.50:8788 ==="
     when:
       event: push
       branch: main
