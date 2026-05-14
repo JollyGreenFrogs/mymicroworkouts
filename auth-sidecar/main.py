@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from jgf_auth.routes.auth_route import router as auth_router
+from jgf_auth.routes.workouts_route import router as workouts_router
 
 app = FastAPI(title="MicroWorkouts Auth", version="1.0.0")
 
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(workouts_router)
 
 
 @app.get("/health", tags=["Health"])

@@ -1,15 +1,12 @@
 # Woodpecker CI/CD pipeline for JollyGreenFrogs/mymicroworkouts
 #
 # Triggers:
-#   develop → type-check → unit-tests → e2e-tests
-#   main    → type-check → unit-tests → e2e-tests → deploy-frost
+#   develop → python-tests → e2e-tests
+#   main    → python-tests → e2e-tests → deploy-frost
 #
 # Secrets required (set once in Woodpecker UI → Settings → Secrets):
-#   MW_JWT_SECRET_KEY      — HS256 JWT secret shared between wrangler and sidecar
+#   MW_JWT_SECRET_KEY      — HS256 JWT secret for the sidecar
 #   MW_DATA_ENCRYPTION_KEY — Fernet key used by the auth sidecar (DATA_ENCRYPTION_KEY)
-#
-# Docker context 'frost' (ssh://root@frost) is picked up from the host via the
-# mounted ~/.docker volume — no FROST_IP secret needed.
 
 when:
   event: push
@@ -19,35 +16,33 @@ when:
 
 steps:
   # ---------------------------------------------------------------------------
-  # Step 1: TypeScript type-check (runs on develop and main)
+  # Step 1: Python tests for the auth sidecar (develop and main)
   # ---------------------------------------------------------------------------
-  type-check:
-    image: node:22-alpine
+  python-tests:
+    image: python:3.12-slim
     commands:
-      - npm ci --ignore-scripts
-      - npx tsc --noEmit
+      - cd auth-sidecar/jgf-auth
+      - pip install --quiet -e ".[dev]"
+      - pytest tests/ -q
 
   # ---------------------------------------------------------------------------
-  # Step 2: Unit tests (runs on develop and main)
-  # ---------------------------------------------------------------------------
-  unit-tests:
-    image: node:22-alpine
-    commands:
-      - npm ci --ignore-scripts
-      - npm test
-
-  # ---------------------------------------------------------------------------
-  # Step 3: E2E tests — headless Chromium via Playwright (develop and main)
+  # Step 2: E2E tests — headless Chromium via Playwright (develop and main)
+  # Needs Docker so it can spin up docker-compose.e2e.yml
   # ---------------------------------------------------------------------------
   e2e-tests:
     image: mcr.microsoft.com/playwright:v1.60.0-noble
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
     commands:
+      - apt-get update -qq && apt-get install -y --no-install-recommends docker-compose-plugin
       - npm ci --ignore-scripts
       - npx playwright install chromium
       - npm run test:e2e
+      # Always tear down the e2e stack after tests
+      - docker compose -f docker-compose.e2e.yml down -v || true
 
   # ---------------------------------------------------------------------------
-  # Step 4: Deploy to frost (main only)
+  # Step 3: Deploy to frost (main only)
   # ---------------------------------------------------------------------------
   deploy-frost:
     image: docker:27-cli
@@ -62,80 +57,42 @@ steps:
       - /home/venura/.docker:/root/.docker
     commands:
       - chmod 600 /root/.ssh/id_ed25519
-      # SSH config: resolve 'frost' hostname and disable strict checking
       - mkdir -p /root/.ssh && printf "Host frost\n  Hostname 10.0.27.50\n  User root\n  StrictHostKeyChecking no\nHost *\n  StrictHostKeyChecking no\n" > /root/.ssh/config
       - apk add --no-cache rsync openssh-client
 
-      # Build auth-sidecar image directly on frost via Docker context
+      # Build the auth-sidecar image directly on frost
       - docker --context frost build -t mymicroworkouts-auth-sidecar:latest ./auth-sidecar
 
-      # Write frost-specific .dev.vars (URLs point to frost IP)
-      - printf "AUTH_SIDECAR_URL=http://10.0.27.50:8787\nJWT_SECRET_KEY=%s\nBASE_URL=http://10.0.27.50:8788\n" "$MW_JWT_SECRET_KEY" > /tmp/frost.dev.vars
-
-      # Write frost-specific auth-sidecar .env (DATABASE_URL uses docker --link hostname)
+      # Write the sidecar .env for frost
       - printf "DATABASE_URL=postgresql://mwauth:mwauth@postgres:5432/mwauth\nDATA_ENCRYPTION_KEY=%s\nJWT_SECRET_KEY=%s\nALLOWED_ORIGINS=http://10.0.27.50:8788\nENVIRONMENT=production\nFRONTEND_URL=http://10.0.27.50:8788\n" "$MW_DATA_ENCRYPTION_KEY" "$MW_JWT_SECRET_KEY" > /tmp/frost.sidecar.env
 
-      # Sync app source to frost (gitignored secrets and generated dirs excluded)
-      - rsync -az --delete --exclude='.git' --exclude='node_modules' --exclude='.wrangler' --exclude='auth-sidecar/jgf-auth' --exclude='auth-sidecar/.env' --exclude='.dev.vars' ./ frost:/home/venura/mymicroworkouts/
-
-      # Sync frost-specific secrets
-      - rsync -az /tmp/frost.dev.vars frost:/home/venura/mymicroworkouts/.dev.vars
+      # Sync source to frost (exclude secrets and large generated dirs)
+      - rsync -az --delete
+          --exclude='.git'
+          --exclude='node_modules'
+          --exclude='auth-sidecar/jgf-auth'
+          --exclude='auth-sidecar/.env'
+          ./ frost:/home/venura/mymicroworkouts/
       - rsync -az /tmp/frost.sidecar.env frost:/home/venura/mymicroworkouts/auth-sidecar/.env
 
-      # On frost: restart postgres, auth-sidecar, wrangler
+      # On frost: bring up postgres + sidecar + nginx via docker compose
       - |
         ssh frost bash -s << 'ENDSSH'
         set -e
-        DEPLOY_DIR=/home/venura/mymicroworkouts
-        APP_PORT=8788
-        SIDECAR_PORT=8787
-
-        # Ensure postgres container is running (create it on first deploy)
-        if docker inspect mw-postgres >/dev/null 2>&1; then
-          docker start mw-postgres 2>/dev/null || true
-        else
-          docker run -d \
-            --name mw-postgres \
-            --restart unless-stopped \
-            -e POSTGRES_USER=mwauth \
-            -e POSTGRES_PASSWORD=mwauth \
-            -e POSTGRES_DB=mwauth \
-            -v mw-pgdata:/var/lib/postgresql/data \
-            postgres:16-alpine
-          i=0; while [ $i -lt 20 ]; do
-            docker exec mw-postgres pg_isready -U mwauth >/dev/null 2>&1 && break
-            i=$((i+1)); sleep 1
-          done
-        fi
-
-        # Restart auth-sidecar with the freshly loaded image
-        docker rm -f mw-auth-sidecar 2>/dev/null || true
-        docker run -d \
-          --name mw-auth-sidecar \
-          --restart unless-stopped \
-          --link mw-postgres:postgres \
-          -p $SIDECAR_PORT:8787 \
-          --env-file $DEPLOY_DIR/auth-sidecar/.env \
-          mymicroworkouts-auth-sidecar:latest
-        sleep 3
-        docker logs mw-auth-sidecar --tail 5
-
-        # Install npm deps and initialise local D1 database
-        cd $DEPLOY_DIR
-        npm install --silent
-        rm -rf .wrangler/state/v3/d1
-        ./scripts/init-db.sh local 2>&1 | grep -E '(Done|success|✅|✓|error|Error)' || true
-
-        # Restart wrangler pages dev (0.0.0.0 makes it accessible on the LAN)
-        pkill -f 'wrangler pages dev' 2>/dev/null || true
-        sleep 1
-        nohup ./node_modules/.bin/wrangler pages dev public \
-          --ip 0.0.0.0 --port $APP_PORT \
-          > /tmp/mymicroworkouts-app.log 2>&1 &
-        sleep 3
-        echo "=== Wrangler last log lines ==="
-        tail -5 /tmp/mymicroworkouts-app.log
+        cd /home/venura/mymicroworkouts
+        docker compose up -d postgres auth-sidecar nginx
+        # Wait for sidecar to be healthy
+        i=0; while [ $i -lt 30 ]; do
+          docker compose exec -T auth-sidecar python -c \
+            "import urllib.request; urllib.request.urlopen('http://localhost:8787/health')" \
+            2>/dev/null && break
+          i=$((i+1)); sleep 2
+        done
+        # Run Alembic migrations
+        docker compose exec -T auth-sidecar alembic upgrade head
+        echo "=== Deploy complete — http://10.0.27.50:8788 ==="
         ENDSSH
     when:
       event: push
       branch: main
+

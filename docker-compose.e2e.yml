@@ -1,0 +1,55 @@
+# docker-compose.e2e.yml — Isolated stack for Playwright e2e tests.
+# Uses a separate DB volume, a fixed test JWT secret, and port 8789
+# so it never collides with the dev stack on 8788.
+#
+# Usage (via scripts/start-e2e-server.sh):
+#   docker compose -f docker-compose.e2e.yml up -d --build
+#   docker compose -f docker-compose.e2e.yml exec auth-sidecar alembic upgrade head
+#   # seed test user (see scripts/start-e2e-server.sh)
+
+services:
+  postgres-e2e:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mwauth
+      POSTGRES_PASSWORD: mwauth
+      POSTGRES_DB: mwauth_e2e
+    volumes:
+      - pgdata-e2e:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mwauth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  auth-sidecar-e2e:
+    build: ./auth-sidecar
+    expose:
+      - "8787"
+    networks:
+      default:
+        aliases:
+          - auth-sidecar   # nginx.conf resolves this name
+    environment:
+      DATABASE_URL: postgresql://mwauth:mwauth@postgres-e2e:5432/mwauth_e2e
+      JWT_SECRET_KEY: e2e-test-jwt-secret-mymicroworkouts
+      DATA_ENCRYPTION_KEY: e2e-test-encryption-key-padded-to-32b
+      ALLOWED_ORIGINS: http://localhost:8789
+      ENVIRONMENT: test
+      FRONTEND_URL: http://localhost:8789
+    depends_on:
+      postgres-e2e:
+        condition: service_healthy
+
+  nginx-e2e:
+    image: nginx:1.27-alpine
+    ports:
+      - "8789:80"
+    volumes:
+      - ./public:/usr/share/nginx/html:ro
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - auth-sidecar-e2e
+
+volumes:
+  pgdata-e2e:
