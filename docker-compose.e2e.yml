@@ -42,12 +42,11 @@ services:
         condition: service_healthy
 
   nginx-e2e:
-    image: nginx:1.27-alpine
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     ports:
       - "8789:80"
-    volumes:
-      - ./public:/usr/share/nginx/html:ro
-      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - auth-sidecar-e2e
 

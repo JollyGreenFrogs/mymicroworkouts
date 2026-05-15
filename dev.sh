@@ -2,8 +2,10 @@
 # dev.sh — Start mymicroworkouts locally
 # Usage: ./dev.sh
 #
-# PREREQUISITE: The jgf-auth sidecar must be running first:
-#   docker compose up --build
+# Starts the full stack (postgres + auth-sidecar + nginx) via docker compose.
+# The app will be available at http://localhost:8788
+#
+# PREREQUISITE: Copy auth-sidecar/.env.example to auth-sidecar/.env and fill in values.
 
 set -e
 
@@ -11,42 +13,28 @@ cd "$(dirname "$0")"
 
 echo "=== mymicroworkouts local dev ==="
 echo ""
-echo "NOTE: The jgf-auth sidecar must be running (docker compose up --build)"
-echo "      before login will work."
-echo ""
 
-# Kill any existing wrangler process on port 8788 first
-fuser -k 8788/tcp 2>/dev/null && sleep 1 || true
-
-# 1. Install dependencies if needed
-if [ ! -d "node_modules" ]; then
-    echo "Installing npm dependencies..."
-    npm install
+# Ensure auth-sidecar .env exists
+if [ ! -f "auth-sidecar/.env" ]; then
+    echo "No auth-sidecar/.env found — copying from auth-sidecar/.env.example"
+    cp auth-sidecar/.env.example auth-sidecar/.env
+    echo ""
+    echo "  ACTION REQUIRED: Edit auth-sidecar/.env and fill in JWT_SECRET_KEY"
+    echo "  and DATA_ENCRYPTION_KEY before the app will work."
+    echo ""
+    echo "  File: $(pwd)/auth-sidecar/.env"
+    echo ""
+    read -rp "Press Enter to continue anyway (app will start, auth will fail until keys are set)..."
     echo ""
 fi
 
-# 2. Ensure .dev.vars exists
-if [ ! -f ".dev.vars" ]; then
-    echo "No .dev.vars found — copying from .dev.vars.example"
-    cp .dev.vars.example .dev.vars
-    echo ""
-    echo "  ACTION REQUIRED: Edit .dev.vars and fill in your OAuth credentials"
-    echo "  before the app's login flow will work."
-    echo ""
-    echo "  File: $(pwd)/.dev.vars"
-    echo ""
-    read -rp "Press Enter to continue anyway (app will start, auth will fail until creds are set)..."
-    echo ""
-fi
+# Export env vars for docker compose variable substitution
+set -a
+# shellcheck disable=SC1091
+source auth-sidecar/.env
+set +a
 
-# 3. Initialize local D1 database (idempotent)
-echo "Initialising local D1 database..."
-chmod +x scripts/init-db.sh
-./scripts/init-db.sh local
-echo ""
-
-# 4. Start the dev server
-echo "Starting dev server at http://localhost:8788"
+echo "Starting stack at http://localhost:8788"
 echo "Press Ctrl+C to stop."
 echo ""
-./node_modules/.bin/wrangler pages dev public
+docker compose up --build
