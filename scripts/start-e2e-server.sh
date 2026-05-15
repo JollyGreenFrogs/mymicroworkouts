@@ -1,26 +1,44 @@
 #!/bin/bash
-# Start the wrangler dev server for e2e testing on port 8789.
-# Uses a fixed test JWT secret so Playwright can mint its own tokens.
-# Runs against an isolated state directory (.wrangler/state-e2e) so the
-# developer's local dev data (.wrangler/state) is never touched.
+# Start the e2e test stack (nginx + sidecar + postgres) for Playwright tests.
+# Uses docker-compose.e2e.yml — isolated from the dev stack (port 8789, separate DB).
 # This script is ONLY used by playwright — never in production.
 set -e
 cd "$(dirname "$0")/.."
 
-E2E_STATE=.wrangler/state-e2e
+DC="docker compose -f docker-compose.e2e.yml"
 
-# Apply DB schema to the isolated e2e state directory
-./node_modules/.bin/wrangler d1 execute mymicroworkouts-db \
-  --local \
-  --persist-to "$E2E_STATE" \
-  --file=./db/schema.sql 2>&1 | grep -E '(Done|✅|error|Error)' || true
+# Bring the stack up (build if images are stale)
+$DC up -d --build 2>&1 | grep -E '(Starting|Created|Building|done|error|Error)' || true
 
-# Seed the e2e test user into the isolated DB
-E2E_STATE="$E2E_STATE" ./scripts/seed-e2e-user.sh
+# Wait for the sidecar to be healthy (up to 60s)
+echo "Waiting for auth-sidecar-e2e to be ready..."
+for i in $(seq 1 30); do
+  if $DC exec -T auth-sidecar-e2e python -c "import urllib.request; urllib.request.urlopen('http://localhost:8787/health')" 2>/dev/null; then
+    break
+  fi
+  sleep 2
+done
 
-exec ./node_modules/.bin/wrangler pages dev public \
-  --port 8789 \
-  --persist-to "$E2E_STATE" \
-  --binding JWT_SECRET_KEY=e2e-test-jwt-secret-mymicroworkouts \
-  --binding AUTH_SIDECAR_URL=http://localhost:8787 \
-  --binding BASE_URL=http://localhost:8789
+# Run Alembic migrations against the e2e DB
+$DC exec -T auth-sidecar-e2e alembic upgrade head
+
+# Seed the e2e test user (code matches JWT sub in e2e/helpers/auth.ts)
+$DC exec -T auth-sidecar-e2e python - <<'PYEOF'
+from jgf_auth.database_models.connection import get_engine
+from sqlalchemy import text
+import uuid
+
+engine = get_engine()
+with engine.connect() as conn:
+    conn.execute(text("""
+        INSERT INTO admin.users
+            (id, code, role, email, email_hash, is_active, is_email_verified,
+             failed_login_attempts, mfa_enabled, created_at, updated_at)
+        VALUES
+            (:id, :code, 'parent', NULL, NULL, TRUE, TRUE, 0, FALSE, NOW(), NOW())
+        ON CONFLICT (code) DO NOTHING
+    """), {"id": str(uuid.uuid4()), "code": "e2euser001ab"})
+    conn.commit()
+PYEOF
+
+echo "✓ E2E stack ready at http://localhost:8789"

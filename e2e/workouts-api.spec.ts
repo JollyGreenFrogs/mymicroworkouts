@@ -59,12 +59,12 @@ test.describe('Workout API', () => {
       expect(Array.isArray(body.workouts)).toBe(true);
     });
 
-    await test.step('POST creates a workout (201)', async () => {
+    await test.step('POST creates a workout (200)', async () => {
       const res = await request.post('/api/workouts', {
         headers: authHeaders,
         data: { day: 'Monday', time: '09:00', exercise: 'Push-Ups', completed: false },
       });
-      expect(res.status()).toBe(201);
+      expect(res.status()).toBe(200);
       const body = await res.json();
       expect(body.success).toBe(true);
       expect(typeof body.id).toBe('string');
@@ -77,7 +77,7 @@ test.describe('Workout API', () => {
       const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
       expect(workout).toBeDefined();
       expect(workout.day).toBe('Monday');
-      expect(workout.completed).toBe(0);
+      expect(workout.completed).toBe(false);
     });
 
     await test.step('POST updates existing workout to completed (200)', async () => {
@@ -94,7 +94,7 @@ test.describe('Workout API', () => {
       const res = await request.get('/api/workouts', { headers: authHeaders });
       const body = await res.json();
       const workout = body.workouts.find((w: { exercise: string }) => w.exercise === 'Push-Ups');
-      expect(workout.completed).toBe(1);
+      expect(workout.completed).toBe(true);
     });
 
     await test.step('DELETE clears workouts for the week', async () => {

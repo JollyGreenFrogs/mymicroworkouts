@@ -418,7 +418,7 @@ function setActiveProgram(id) {
 
 // ============================================================
 // EXERCISE IMAGE LOOKUP
-// Uses yuhonas/free-exercise-db (GitHub Pages, no API key, CORS open)
+// Uses yuhonas/free-exercise-db (GitHub Pages, public read-only dataset)
 // ============================================================
 
 const EXERCISE_DB_URL = 'https://yuhonas.github.io/free-exercise-db/exercises.json';
